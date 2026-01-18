@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState, useEffect } from 'react'
-import { useFrame } from '@react-three/fiber'
+import { useFrame, useThree } from '@react-three/fiber'
 import { Image, Text } from '@react-three/drei'
 import * as THREE from 'three'
 import { supabase } from '@/lib/supabase'
@@ -16,23 +16,14 @@ function OrderCard({ position, texture, label, status }: { position: [number, nu
     const groupRef = useRef<THREE.Group>(null)
     const [hovered, setHover] = useState(false)
 
-    useFrame((state, delta) => {
+    useFrame((state) => {
         if (!groupRef.current) return
-
-        // 1. X-AXIS ROTATION LOGIC
-        // We use Math.sin to make it rock back and forth gently, rather than spinning like a fan.
-        // changing '2' alters speed. changing '0.1' alters angle depth.
+        // Gentle X-Axis rocking
         groupRef.current.rotation.x = Math.sin(state.clock.elapsedTime * 2) * 0.1
 
-        // 2. HOVER EFFECT
-        // If hovered, we stop the rocking and tilt it slightly up to face the user
         if (hovered) {
+            // Tilt up when hovered
             groupRef.current.rotation.x = THREE.MathUtils.lerp(groupRef.current.rotation.x, -0.2, 0.1)
-            groupRef.current.position.y = THREE.MathUtils.lerp(groupRef.current.position.y, 0.5, 0.1)
-        } else {
-            // Return to floating y position
-            // The '+ position[1]' ensures it stays relative to its starting spot
-            groupRef.current.position.y = Math.sin(state.clock.elapsedTime) * 0.1 + position[1]
         }
     })
 
@@ -43,9 +34,9 @@ function OrderCard({ position, texture, label, status }: { position: [number, nu
             onPointerOver={() => setHover(true)}
             onPointerOut={() => setHover(false)}
         >
-            {/* Glass Panel */}
+            {/* SMALLER CARD SIZE: Changed from [3, 4] to [2, 2.8] */}
             <mesh position={[0, 0, -0.1]}>
-                <planeGeometry args={[3, 4]} />
+                <planeGeometry args={[2, 2.8]} />
                 <meshPhysicalMaterial
                     color="white" roughness={0.1} metalness={0.1}
                     transmission={0.95} thickness={2} transparent opacity={1} envMapIntensity={2}
@@ -54,17 +45,17 @@ function OrderCard({ position, texture, label, status }: { position: [number, nu
 
             {/* Border */}
             <mesh position={[0, 0, -0.11]}>
-                <planeGeometry args={[3.1, 4.1]} />
+                <planeGeometry args={[2.05, 2.85]} />
                 <meshBasicMaterial color={hovered ? "#00ff41" : "#555"} />
             </mesh>
 
-            <Image url={texture} scale={[2, 2]} position={[0, 0.5, 0.1]} transparent />
+            <Image url={texture} scale={[1.5, 1.5]} position={[0, 0.5, 0.1]} transparent />
 
-            <Text position={[0, -1, 0.2]} fontSize={0.25} color="white" anchorX="center" anchorY="middle">
+            <Text position={[0, -0.6, 0.2]} fontSize={0.18} color="white" anchorX="center" anchorY="middle">
                 {label}
             </Text>
 
-            <Text position={[0, -1.4, 0.2]} fontSize={0.15} color={status === "transit" ? "#00ff41" : "#ffaa00"} anchorX="center">
+            <Text position={[0, -0.9, 0.2]} fontSize={0.12} color={status === "transit" ? "#00ff41" : "#ffaa00"} anchorX="center">
                 {status.toUpperCase()}
             </Text>
         </group>
@@ -73,6 +64,10 @@ function OrderCard({ position, texture, label, status }: { position: [number, nu
 
 export default function ActiveOrders() {
     const [orders, setOrders] = useState<Order[]>([])
+    const { viewport } = useThree() // <-- This detects screen size
+
+    // Check if screen is narrow (Mobile)
+    const isMobile = viewport.width < 8
 
     useEffect(() => {
         const fetchOrders = async () => {
@@ -91,13 +86,24 @@ export default function ActiveOrders() {
     return (
         <group>
             {orders.map((order, index) => {
-                const xPos = (index - 1.5) * 3.5
+                let x, y;
+
+                if (isMobile) {
+                    // MOBILE LAYOUT: Stack Vertically
+                    x = 0
+                    y = 3 - (index * 3.2) // Start high, stack down
+                } else {
+                    // DESKTOP LAYOUT: Row Horizontal
+                    x = (index - 1.5) * 2.5 // Tighter spacing
+                    y = 0
+                }
+
                 return (
                     // @ts-ignore
                     <OrderCard
                         key={order.id}
                         // @ts-ignore
-                        position={[xPos, 0, 0]}
+                        position={[x, y, 0]}
                         texture={getTexture(order.id)}
                         label={order.restaurant_name}
                         status={order.status}
